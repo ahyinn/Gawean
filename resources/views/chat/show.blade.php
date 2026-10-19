@@ -132,6 +132,7 @@
         }).then(function (res) {
             if (res.status === 201) {
                 renderAll([res.data.message], true);
+                if (window.gaweanChat && window.gaweanChat.onSent) window.gaweanChat.onSent(res.data.message.id);
                 input.value = '';
                 input.style.height = '';
             } else if (res.status === 422) {
@@ -160,7 +161,41 @@
     document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
 
     renderAll(cfg.initial, true);
-    setInterval(poll, cfg.interval);
+    var timer = setInterval(poll, cfg.interval);
+
+    // Dipakai oleh modul Firebase di bawah
+    window.gaweanChat = {
+        poll: poll,
+        getLastId: function () { return lastId; },
+        slowDown: function () { clearInterval(timer); timer = setInterval(poll, 15000); }, // polling jadi cadangan saja
+        onSent: null
+    };
 })();
+</script>
+<script type="module">
+    // Realtime lewat Firebase: tarik pesan baru dari Laravel begitu ada sinyal, tanpa menunggu polling.
+    // Kalau Firebase tidak aktif / ditolak rules, chat tetap jalan lewat polling 3 detik.
+    const fb = window.gaweanFirebase;
+    const chat = window.gaweanChat;
+    if (fb && chat) {
+        const meId = {{ (int) auth()->id() }};
+        const convRef = fb.doc(fb.db, 'chatSignals', 'c_' + {{ (int) $conversation->id }});
+        const otherRef = fb.doc(fb.db, 'userSignals', 'u_' + {{ (int) $other->id }});
+        let slowed = false;
+
+        fb.onSnapshot(convRef, function (snap) {
+            if (!snap.metadata.fromCache && !slowed) { slowed = true; chat.slowDown(); }
+            const d = snap.data();
+            if (d && d.senderId !== meId && d.lastMessageId > chat.getLastId()) chat.poll();
+        }, function (err) {
+            console.warn('Firebase realtime tidak aktif, chat memakai polling:', err.code);
+        });
+
+        chat.onSent = function (messageId) {
+            const payload = { lastMessageId: messageId, senderId: meId, ts: fb.serverTimestamp() };
+            fb.setDoc(convRef, payload).catch(function () {});
+            fb.setDoc(otherRef, payload).catch(function () {});
+        };
+    }
 </script>
 @endpush

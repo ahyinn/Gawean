@@ -740,9 +740,39 @@
                 .then(function (d) { if (d) { setBadge('messages', d.messages); setBadge('notifications', d.notifications); } })
                 .catch(function () {});
         }
+        window.gaweanRefreshBadges = tick;
         setInterval(tick, 20000);
     })();
 </script>
+@php
+    $firebaseConfig = [
+        'apiKey' => config('services.firebase.api_key'),
+        'authDomain' => config('services.firebase.auth_domain'),
+        'projectId' => config('services.firebase.project_id'),
+        'storageBucket' => config('services.firebase.storage_bucket'),
+        'messagingSenderId' => config('services.firebase.messaging_sender_id'),
+        'appId' => config('services.firebase.app_id'),
+    ];
+    $meId = auth()->id();
+@endphp
+@if($firebaseConfig['apiKey'] && $firebaseConfig['projectId'])
+<script type="module">
+    // Firebase Firestore sebagai pemicu realtime. Isi pesan TIDAK disimpan di sini, hanya id pesan terakhir.
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
+    import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
+
+    const app = initializeApp(@json($firebaseConfig));
+    const db = getFirestore(app);
+    window.gaweanFirebase = { db, doc, onSnapshot, setDoc, serverTimestamp };
+
+    // Ada pesan baru untuk saya -> segarkan badge navbar saat itu juga
+    onSnapshot(doc(db, 'userSignals', 'u_' + @json($meId)), function (snap) {
+        if (snap.exists() && window.gaweanRefreshBadges) window.gaweanRefreshBadges();
+    }, function (err) {
+        console.warn('Firebase realtime tidak aktif, badge memakai polling:', err.code);
+    });
+</script>
+@endif
 @endauth
 @stack('scripts')
 </body>

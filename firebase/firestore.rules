@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Sinyal realtime: hanya berisi id pesan terakhir, bukan isi pesan.
+    match /chatSignals/{docId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasOnly(['lastMessageId', 'senderId', 'ts'])
+                            && request.resource.data.lastMessageId is int
+                            && request.resource.data.senderId is int;
+      allow delete: if false;
+    }
+
+    match /userSignals/{docId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasOnly(['lastMessageId', 'senderId', 'ts'])
+                            && request.resource.data.lastMessageId is int
+                            && request.resource.data.senderId is int;
+      allow delete: if false;
+    }
+
+    // Selain itu ditolak
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
