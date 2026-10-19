@@ -22,7 +22,7 @@ Status pesanan: `menunggu -> diterima | ditolak -> selesai` (tanpa status revisi
 | Admin | Guard & tabel terpisah (`admins`), login lewat `/admin` dibatasi 5 percobaan/menit, akun dibuat lewat `php artisan admin:create` (tidak ada pendaftaran admin lewat web) |
 | Listing jasa | Buat/edit/hapus jasa (judul, harga, kategori, deskripsi, gambar); kategori; pencarian; filter **kategori dan harga maksimal**; rating hanya ditampilkan |
 | Transaksi & order | Pemesanan, pembayaran manual + bukti, verifikasi admin, terima/tolak freelancer, **Pesanan Saya** dan **Pesanan Masuk** |
-| Komunikasi | Chat client-freelancer (polling 3 detik, maks. 30 pesan/menit); client boleh chat ke freelancer, freelancer hanya ke client yang membeli jasanya; badge jumlah belum dibaca di navbar (polling 20 detik lewat `/badge-counts`); chat tidak membuat notifikasi |
+| Komunikasi | Chat client-freelancer (maks. 30 pesan/menit) dengan pembaruan **realtime lewat Firebase Firestore** sebagai sinyal; polling lewat Laravel tetap jadi cadangan (3 detik, atau 15 detik saat Firebase aktif); client boleh chat ke freelancer, freelancer hanya ke client yang membeli jasanya; badge jumlah belum dibaca di navbar ikut diperbarui lewat sinyal Firebase (polling cadangan 20 detik lewat `/badge-counts`); chat tidak membuat notifikasi |
 | Notifikasi | Order baru; pembayaran terverifikasi; pesanan siap diproses; bukti pembayaran ditolak; pesanan diterima / ditolak / selesai |
 | Rating | Rating bintang + ulasan setelah pesanan selesai (satu ulasan per pesanan) |
 | Panel admin | Dashboard (jumlah pengguna, freelancer, jasa, pesanan, pembayaran menunggu verifikasi, 5 pesanan terbaru); antrean verifikasi pembayaran; CRUD kategori; moderasi (hapus pengguna, lihat/hapus jasa, pantau pesanan) |
@@ -63,6 +63,32 @@ php artisan serve
 
 Data contoh (opsional): `php artisan db:seed --class=FreelancerPerKategoriSeeder`
 (membuat freelancer, jasa, pesanan selesai, dan ulasan contoh; password semua akun contoh: `12345678`).
+Daftar email akun contoh ditampilkan sebagai tabel di terminal setelah seeder selesai.
+
+## Konfigurasi Firebase (chat realtime)
+
+Chat realtime memakai **Firebase Firestore**. Data pesan tetap disimpan di database Laravel; Firestore hanya menyimpan
+sinyal berupa id pesan terakhir (koleksi `chatSignals` dan `userSignals`). Tanpa konfigurasi ini aplikasi tetap berjalan
+memakai polling.
+
+1. Buat proyek di [Firebase Console](https://console.firebase.google.com), tambahkan aplikasi Web, lalu salin nilai konfigurasinya.
+2. Buat database di menu **Firestore Database** (mode production).
+3. Buka tab **Rules**, tempel isi `firebase/firestore.rules`, lalu **Publish**.
+4. Isi variabel berikut di file `.env` (nilainya ada di konfigurasi aplikasi Web Firebase):
+
+```env
+FIREBASE_API_KEY=
+FIREBASE_AUTH_DOMAIN=
+FIREBASE_PROJECT_ID=
+FIREBASE_STORAGE_BUCKET=
+FIREBASE_MESSAGING_SENDER_ID=
+FIREBASE_APP_ID=
+```
+
+5. Jalankan `php artisan config:clear`.
+
+Keterbatasan: aplikasi belum memakai Firebase Authentication, sehingga Rules hanya membatasi bentuk data, bukan siapa yang
+boleh membaca. Id percakapan dan waktu pesan dapat dibaca pihak yang mengetahui konfigurasi Firebase; isi pesan tidak.
 
 ## Pengujian
 
